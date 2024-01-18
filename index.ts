@@ -198,6 +198,14 @@ async function stopFlameSession(ctx: BotContext) {
     const topFlamersMessage = await getFlamersMessage(ctx);
     const topFlavorsMessage = getFlavorsMessage(ctx);
 
+    // reset flamers
+    ctx.session.flamers = {};
+    // reset popcorns
+    for (const type in ctx.session.popcorns) {
+        ctx.session.popcorns[type].takenTimes = 0;
+        ctx.session.popcorns[type].takenBy = [];
+    }
+
     await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage }));
 }
 
