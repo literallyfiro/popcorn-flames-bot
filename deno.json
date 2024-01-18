@@ -1,0 +1,5 @@
+{
+  "tasks": {
+    "bot": "deno run --allow-read --allow-net --allow-env index.ts"
+  }
+}
