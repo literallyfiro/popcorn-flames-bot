@@ -130,12 +130,12 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
 });
 
 bot.chatType(["group", "supergroup"])
-    .filter(async (ctx: BotContext) => {
+    .command("flame", async (ctx: BotContext) => {
         const admins = await ctx.getChatAdministrators();
         const isAdmin = admins.some((admin) => admin.user.id === ctx.from?.id);
-        return isAdmin;
-    })
-    .command("flame", async (ctx: BotContext) => {
+        if (!isAdmin) {
+            return;
+        }
         if (ctx.session.flameEnabled) {
             await stopFlameSession(ctx);
         } else {
