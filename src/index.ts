@@ -2,48 +2,22 @@ import { Bot, Context, GrammyError, HttpError, session, SessionFlavor } from "ht
 import { I18n, I18nFlavor } from "https://deno.land/x/grammy_i18n@v1.0.1/mod.ts";
 import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
-import { load } from "https://deno.land/std@0.212.0/dotenv/mod.ts";
 import { run } from "https://deno.land/x/grammy_runner@v2.0.3/mod.ts";
+import env from "./env.ts";
+import groups, { GroupData, fetchGroup } from "./mongo.ts";
 
 interface SessionData {
     __language_code?: string;
-    flameEnabled: boolean;
-    lastPinnedMessageId?: number;
-    flamers: { [userId: string]: number };
-    flameStartedAt?: number;
-
-    popcorns: {
-        [type: string]: {
-            emoji: string;
-            takenTimes: number;
-            takenBy?: number[];
-        };
-    }
 }
 
-const popcornTypes = {
-    buttered: { emoji: "🍿", takenTimes: 0 },
-    caramel: { emoji: "🍯", takenTimes: 0 },
-    cheese: { emoji: "🧀", takenTimes: 0 },
-    spicy: { emoji: "🌶️", takenTimes: 0 },
-    sweet: { emoji: "🍬", takenTimes: 0 },
-};
-
 type BotContext = Context & SessionFlavor<SessionData> & I18nFlavor;
-const env = await load();
+
 const bot = new Bot<BotContext>(env["BOT_TOKEN"]);
 const i18n = new I18n<BotContext>({
     defaultLocale: "en",
     useSession: true,
     directory: "locales",
 });
-function initial(): SessionData {
-    return {
-        flameEnabled: false,
-        flamers: {},
-        popcorns: popcornTypes,
-    };
-}
 bot.api.config.use(parseMode("HTML"));
 await bot.api.setMyCommands([
     { command: "flame", description: "Starts or stops the flame session" },
@@ -64,7 +38,6 @@ await bot.api.setMyDefaultAdministratorRights({
 });
 bot.catch(async (err) => {
     const ctx = err.ctx;
-    console.error(`Error while handling update ${ctx.update.update_id}:`);
     const e = err.error;
     if (e instanceof GrammyError) {
         console.error("Error in request:", e.description);
@@ -73,27 +46,27 @@ bot.catch(async (err) => {
     } else {
         console.error("Unknown error:", e);
     }
-
     await ctx.reply("An error occurred while processing your request");
 });
-bot.use(session({ initial }));
+bot.use(session());
 bot.use(i18n);
 
-const menu = new Menu<BotContext>("popcorn_chooser");
+const menu = new Menu<BotContext>("main-menu");
 menu
-    .dynamic((ctx, range) => {
-        const flavorKeys = Object.keys(popcornTypes) as Array<keyof typeof popcornTypes>;
+    .dynamic(async (ctx, range) => {
+        const group = await fetchGroup(ctx.chat?.id!);
+        const flavorKeys = Object.keys(group.popcorns);
 
         for (let i = 0; i < flavorKeys.length; i++) {
             const flavor = flavorKeys[i];
 
             const username = ctx.me.username;
-            const encodedFlavor = encodeURIComponent(flavor);
-            const encodedUserId = encodeURIComponent(ctx.from?.id!);
-            const encodedChatId = encodeURIComponent(ctx.chat?.id!);
+            const encodedFlavor = flavor;
+            const encodedUserId = ctx.from?.id!;
+            const encodedChatId = ctx.chat?.id!;
 
-            const link = `https://t.me/${username}?start=take-${encodedFlavor}-${encodedUserId}-${encodedChatId}`;
-            const button = range.url(popcornTypes[flavor].emoji, link);
+            const link = `https://t.me/${username}?start=take_${encodedFlavor}_${encodedUserId}_${encodedChatId}`;
+            const button = range.url(group.popcorns[flavor].emoji, link);
             // only add .row if there are more than 3 buttons in a row
             if (i % 3 === 0) {
                 button.row();
@@ -102,26 +75,34 @@ menu
     })
 bot.use(menu);
 
+
+
 bot.chatType("private").command("start", async (ctx: BotContext) => {
     const deepLink = ctx.match;
     // match will be take-flavor-userid-chatid
     if (typeof deepLink === "string" && deepLink.startsWith("take")) {
-        const [_, flavor, userId, chatId] = deepLink.split("-");
+        const [_, flavor, userId, chatId] = deepLink.split("_");
 
-        // check if the user has already taken any popcorn
-        for (const type in ctx.session.popcorns) {
-            if (ctx.session.popcorns[type].takenBy?.includes(parseInt(userId))) {
-                await ctx.reply(ctx.t("already-took-flavor", { group: chatId }));
-                return;
+        groups.findOne({ _id: parseInt(chatId) }).then(async (group) => {
+            if (group) {
+                // check if the user has already taken any popcorn
+                for (const type in group.popcorns) {
+                    if (group.popcorns[type].takenBy?.includes(parseInt(userId))) {
+                        await ctx.reply(ctx.t("already-took-flavor", { group: chatId }));
+                        return;
+                    }
+                }
+
+                const popcorn = group.popcorns[flavor];
+                popcorn.takenTimes++;
+                popcorn.takenBy = popcorn.takenBy || [];
+                popcorn.takenBy.push(parseInt(userId));
+
+                await groups.replaceOne({ _id: parseInt(chatId) }, group);
+
+                await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
             }
-        }
-
-        const popcorn = ctx.session.popcorns[flavor];
-        popcorn.takenTimes++;
-        popcorn.takenBy = popcorn.takenBy || [];
-        popcorn.takenBy.push(parseInt(userId));
-
-        await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
+        });
     } else {
         // send a link to add the bot to a group. the bot must have pin permission
         const botUsername = ctx.me.username;
@@ -137,23 +118,28 @@ bot.chatType(["group", "supergroup"])
         if (!isAdmin) {
             return;
         }
-        if (ctx.session.flameEnabled) {
-            await stopFlameSession(ctx);
+
+        const group = await fetchGroup(ctx.chat?.id!);
+        if (group.flameEnabled) {
+            await stopFlameSession(ctx, group);
         } else {
-            await startFlameSession(ctx);
+            await startFlameSession(ctx, group);
         }
     });
 
 // bot on join group
 bot.on(":new_chat_members:me", async (ctx: BotContext) => {
     await ctx.reply(ctx.t("bot-joined"));
+    await fetchGroup(ctx.chat?.id!);
 });
 
-bot.on("message", (ctx: BotContext) => {
-    if (ctx.session.flameEnabled) {
+bot.on("message", async (ctx: BotContext) => {
+    const group = await fetchGroup(ctx.chat?.id!);
+    if (group.flameEnabled) {
         const fromId = ctx.message?.from?.id;
         if (!fromId || fromId == ctx.me.id) return;
-        ctx.session.flamers[fromId] = (ctx.session.flamers[fromId] || 0) + ctx.message?.text?.length!;
+        group.flamers[fromId] = (group.flamers[fromId] || 0) + ctx.message?.text?.length!;
+        await groups.replaceOne({ _id: ctx.chat?.id! }, group);
     }
 });
 
@@ -165,12 +151,13 @@ const getPositionEmoji = (position: number): string => {
 const getFlamerInfo = async (
     userId: number,
     ctx: BotContext,
-    position: number
+    position: number,
+    group: GroupData,
 ): Promise<string> => {
     const member = await ctx.getChatMember(userId);
     const firstName = member.user.first_name;
 
-    const messageCount = ctx.session.flamers[userId];
+    const messageCount = group.flamers[userId];
     const formattedUser = `<a href="tg://user?id=${userId}">${firstName}</a>`;
     const positionEmoji = getPositionEmoji(position);
 
@@ -178,26 +165,28 @@ const getFlamerInfo = async (
     return formattedMessage;
 };
 
-async function startFlameSession(ctx: BotContext) {
-    ctx.session.flameEnabled = true;
-    ctx.session.flameStartedAt = Date.now();
+async function startFlameSession(ctx: BotContext, group: GroupData) {
+    group.flameEnabled = true;
+    group.flameStartedAt = Date.now();
 
     // get the last pinned message
     const chat = await ctx.getChat();
-    ctx.session.lastPinnedMessageId = chat.pinned_message?.message_id;
+    group.lastPinnedMessageId = chat.pinned_message?.message_id;
 
-    const flavors = ctx.session.popcorns;
+    const flavors = group.popcorns;
     const flavorList = Object.keys(flavors).map((type) => {
-        const flavor = ctx.session.popcorns[type];
+        const flavor = group.popcorns[type];
         return `${flavor.emoji} ${type}`;
     }).join("\n");
+
+    await groups.replaceOne({ _id: ctx.chat?.id! }, group);
 
     const flameMessage = await ctx.reply(ctx.t("flame-started", { flavors: flavorList }), { reply_markup: menu });
     await ctx.pinChatMessage(flameMessage.message_id, { disable_notification: true });
 }
 
-const getFlamersMessage = async (ctx: BotContext): Promise<string> => {
-    const flamers = ctx.session.flamers;
+const getFlamersMessage = async (ctx: BotContext, group: GroupData): Promise<string> => {
+    const flamers = group.flamers;
 
     // check if all flamers have 0 messages
     if (Object.keys(flamers).length === 0) {
@@ -208,15 +197,15 @@ const getFlamersMessage = async (ctx: BotContext): Promise<string> => {
     const topFlamers = sortedFlamers.slice(0, 3);
     const topFlamersMessages = await Promise.all(
         topFlamers.map(async (userId, index) => {
-            return await getFlamerInfo(parseInt(userId), ctx, index + 1);
+            return await getFlamerInfo(parseInt(userId), ctx, index + 1, group);
         }),
     );
     const topFlamersMessage = topFlamersMessages.join("\n");
     return topFlamersMessage;
 }
 
-const getFlavorsMessage = (ctx: BotContext): string => {
-    const flavors = ctx.session.popcorns;
+const getFlavorsMessage = (ctx: BotContext, group: GroupData): string => {
+    const flavors = group.popcorns;
 
     // check if all flavors have 0 takenTimes
     const allZero = Object.keys(flavors).every((type) => flavors[type].takenTimes === 0);
@@ -228,46 +217,48 @@ const getFlavorsMessage = (ctx: BotContext): string => {
     const topFlavors = sortedFlavors.slice(0, 3);
     const topFlavorsMessages = topFlavors
         .filter((type) => {
-            const flavor = ctx.session.popcorns[type];
+            const flavor = group.popcorns[type];
             return flavor.takenTimes > 0;
         })
         .map((type) => {
-            const flavor = ctx.session.popcorns[type];
+            const flavor = group.popcorns[type];
             return `${flavor.emoji} (${type}) - ${flavor.takenTimes}`;
         });
     const topFlavorsMessage = topFlavorsMessages.join("\n");
     return topFlavorsMessage;
 }
 
-async function stopFlameSession(ctx: BotContext) {
-    ctx.session.flameEnabled = false;
+async function stopFlameSession(ctx: BotContext, group: GroupData) {
+    group.flameEnabled = false;
 
     // unpin the flame message
-    await ctx.unpinChatMessage(ctx.session.lastPinnedMessageId);
+    await ctx.unpinChatMessage(group.lastPinnedMessageId);
 
-    const lastPinnedMessageId = ctx.session.lastPinnedMessageId;
+    const lastPinnedMessageId = group.lastPinnedMessageId;
     if (lastPinnedMessageId) {
         await ctx.pinChatMessage(lastPinnedMessageId, { disable_notification: true });
-        ctx.session.lastPinnedMessageId = undefined;
+        group.lastPinnedMessageId = undefined;
     }
 
-    const flameDuration = Date.now() - ctx.session.flameStartedAt!;
-    const topFlamersMessage = await getFlamersMessage(ctx);
-    const topFlavorsMessage = getFlavorsMessage(ctx);
+    const flameDuration = Date.now() - group.flameStartedAt!;
+    const topFlamersMessage = await getFlamersMessage(ctx, group);
+    const topFlavorsMessage = getFlavorsMessage(ctx, group);
 
     const hours = Math.floor(flameDuration / 1000 / 60 / 60);
     const minutes = Math.floor(flameDuration / 1000 / 60) % 60;
     const seconds = Math.floor(flameDuration / 1000) % 60;
 
     // reset flamers
-    ctx.session.flamers = {};
+    group.flamers = {};
     // reset popcorns
-    for (const type in ctx.session.popcorns) {
-        ctx.session.popcorns[type].takenTimes = 0;
-        ctx.session.popcorns[type].takenBy = [];
+    for (const type in group.popcorns) {
+        group.popcorns[type].takenTimes = 0;
+        group.popcorns[type].takenBy = [];
     }
     // reset flameStartedAt
-    ctx.session.flameStartedAt = undefined;
+    group.flameStartedAt = undefined;
+
+    await groups.replaceOne({ _id: ctx.chat?.id! }, group);
 
     await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage, hours: hours, minutes: minutes, seconds: seconds }));
 }
