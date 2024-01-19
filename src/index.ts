@@ -21,6 +21,7 @@ const i18n = new I18n<BotContext>({
 bot.api.config.use(parseMode("HTML"));
 await bot.api.setMyCommands([
     { command: "flame", description: "Starts or stops the flame session" },
+    { command: "language", description: "Sets the language of the bot" },
 ]);
 await bot.api.setMyDefaultAdministratorRights({
     for_channels: false,
