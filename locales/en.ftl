@@ -52,11 +52,17 @@ already-took-flavor = ❌ You have already chosen the popcorn flavor in the grou
 bot-joined =
     <b>🍿 FLAME BOT 🍿</b>
 
-    Hi, I'm the <b>Flame Bot</b>! I'm here to help you choose the popcorn flavor for the next heated argument in your group.
-    Admins can use the <b>/flame</b> command to start and stop the flame
+    Hi there! I'm the <b>Flame Bot</b>, and I'm ready to add some excitement to your group discussions. 🔥
+
+    Admins, use the <b>/flame</b> command to kick off a flame and let the popcorn fest begin! 🎉
 
 # Private chat
 start-private = 
-    Hi.
-add-to-group = 🍿 Add to your group 🍿
+    Hi there! 👋
+    I'm the <b>Flame Bot</b>! 🍿✨
+
+    Need some popcorn flavor for a private debate or discussion? Just add me to your group, and I'll spice things up for you. 🌶️
+
+    Just use the <b>/flame</b> command in your group to start and stop the flame mode.
+add-to-group = 🍿 Add me to your group 🍿
 
