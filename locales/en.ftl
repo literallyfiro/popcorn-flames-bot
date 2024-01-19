@@ -1,3 +1,5 @@
+language-set = Language has been set to 🇺🇸 English
+
 date-layout = 
     {$hours -> 
         *[0] {""}
@@ -43,7 +45,7 @@ top-flamers-layout =
     }</b>
 
 no-flavors = ❌ <i>No flavors have been chosen :(</i>
-no-flamers = ❌ <i>No flamers yet :(</i>
+no-flamers = ❌ <i>No flamers :(</i>
 
 took-flavor = ✅ You have chosen the flavor <b>{$flavor}</b> for the popcorn in the group <b>{$group}</b>!
 already-took-flavor = ❌ You have already chosen the popcorn flavor in the group <b>{$group}</b>! Only one flavor at a time!
