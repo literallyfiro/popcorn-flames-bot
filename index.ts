@@ -1,4 +1,4 @@
-import { Bot, Context, session, SessionFlavor } from "https://deno.land/x/grammy@v1.20.3/mod.ts";
+import { Bot, Context, GrammyError, HttpError, session, SessionFlavor } from "https://deno.land/x/grammy@v1.20.3/mod.ts";
 import { I18n, I18nFlavor } from "https://deno.land/x/grammy_i18n@v1.0.1/mod.ts";
 import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
@@ -60,6 +60,20 @@ await bot.api.setMyDefaultAdministratorRights({
         can_manage_chat: false,
         can_manage_video_chats: false,
     },
+});
+bot.catch(async (err) => {
+    const ctx = err.ctx;
+    console.error(`Error while handling update ${ctx.update.update_id}:`);
+    const e = err.error;
+    if (e instanceof GrammyError) {
+        console.error("Error in request:", e.description);
+    } else if (e instanceof HttpError) {
+        console.error("Could not contact Telegram:", e);
+    } else {
+        console.error("Unknown error:", e);
+    }
+
+    await ctx.reply("An error occurred while processing your request");
 });
 bot.use(session({ initial }));
 bot.use(i18n);
@@ -208,14 +222,14 @@ const getFlavorsMessage = (ctx: BotContext): string => {
     const sortedFlavors = Object.keys(flavors).sort((a, b) => flavors[b].takenTimes - flavors[a].takenTimes);
     const topFlavors = sortedFlavors.slice(0, 3);
     const topFlavorsMessages = topFlavors
-    .filter((type) => {
-        const flavor = ctx.session.popcorns[type];
-        return flavor.takenTimes > 0;
-    })
-    .map((type) => {
-        const flavor = ctx.session.popcorns[type];
-        return `${flavor.emoji} (${type}) - ${flavor.takenTimes}`;
-    });
+        .filter((type) => {
+            const flavor = ctx.session.popcorns[type];
+            return flavor.takenTimes > 0;
+        })
+        .map((type) => {
+            const flavor = ctx.session.popcorns[type];
+            return `${flavor.emoji} (${type}) - ${flavor.takenTimes}`;
+        });
     const topFlavorsMessage = topFlavorsMessages.join("\n");
     return topFlavorsMessage;
 }
