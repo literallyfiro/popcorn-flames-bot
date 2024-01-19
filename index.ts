@@ -137,15 +137,32 @@ bot.on("message", (ctx: BotContext) => {
     if (ctx.session.flameEnabled) {
         const fromId = ctx.message?.from?.id;
         if (!fromId || fromId == ctx.me.id) return;
-        ctx.session.flamers[fromId] = (ctx.session.flamers[fromId] || 0) + 1;
+        ctx.session.flamers[fromId] = (ctx.session.flamers[fromId] || 0) + ctx.message?.text?.length!;
     }
 });
 
-const getFlamerInfo = async (userId: number, ctx: BotContext): Promise<string> => {
+const getPositionEmoji = (position: number): string => {
+    switch (position) {
+        case 1:
+            return "🥇";
+        case 2:
+            return "🥈";
+        case 3:
+            return "🥉";
+        default:
+            return "";
+    }
+}
+
+const getFlamerInfo = async (userId: number, ctx: BotContext, position: number): Promise<string> => {
     const member = await ctx.getChatMember(userId);
     const firstName = member.user.first_name;
+
     const messageCount = ctx.session.flamers[userId];
-    const formattedMessage = `<a href="tg://user?id=${userId}">${firstName}</a> - ${messageCount}`;
+    const formattedUser = `<a href="tg://user?id=${userId}">${firstName}</a>`;
+    const positionEmoji = getPositionEmoji(position);
+
+    const formattedMessage = ctx.t("top-flamers-layout", { rankemoji: positionEmoji, name: formattedUser, characters: messageCount });
     return formattedMessage;
 };
 
@@ -177,7 +194,9 @@ const getFlamersMessage = async (ctx: BotContext): Promise<string> => {
     const sortedFlamers = Object.keys(flamers).sort((a, b) => flamers[b] - flamers[a]);
     const topFlamers = sortedFlamers.slice(0, 3);
     const topFlamersMessages = await Promise.all(
-        topFlamers.map((userId) => getFlamerInfo(Number(userId), ctx))
+        topFlamers.map(async (userId, index) => {
+            return await getFlamerInfo(Number(userId), ctx, index + 1);
+        }),
     );
     const topFlamersMessage = topFlamersMessages.join("\n");
     return topFlamersMessage;

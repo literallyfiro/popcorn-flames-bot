@@ -19,7 +19,13 @@ flame-stopped =
 
     <b>See you at the next heated argument!</b>
 
-no-flavors = ❌ <i>No flavors have been selected for the popcorn :(</i>
+top-flamers-layout =
+    {$rankemoji} {$name} with <b>{$characters -> 
+        *[one] one character
+         [other] {$characters} characters
+    }</b>
+
+no-flavors = ❌ <i>No flavors have been chosen :(</i>
 no-flamers = ❌ <i>No flamers yet :(</i>
 
 took-flavor = ✅ You have chosen the flavor <b>{$flavor}</b> for the popcorn in the group <b>{$group}</b>!
