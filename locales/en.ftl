@@ -1,4 +1,5 @@
 language-set = Language has been set to 🇺🇸 English
+language-choose = Choose your language
 
 date-layout = 
     {$hours -> 

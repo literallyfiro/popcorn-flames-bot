@@ -1,4 +1,4 @@
-import { Bot, Context, GrammyError, HttpError, session, SessionFlavor } from "https://deno.land/x/grammy@v1.20.3/mod.ts";
+import { Bot, Context, GrammyError, HttpError, SessionFlavor, session } from "https://deno.land/x/grammy@v1.20.3/mod.ts";
 import { I18n, I18nFlavor } from "https://deno.land/x/grammy_i18n@v1.0.1/mod.ts";
 import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
@@ -48,40 +48,52 @@ bot.catch(async (err) => {
     }
     await ctx.reply("An error occurred while processing your request");
 });
-bot.use(session());
+// @ts-ignore deno.
+bot.use(session({ initial: () => ({ __language_code: "en" }) }));
 bot.use(i18n);
 
-const menu = new Menu<BotContext>("main-menu");
-menu
-    .dynamic(async (ctx, range) => {
-        const group = await fetchGroup(ctx.chat?.id!);
-        const flavorKeys = Object.keys(group.popcorns);
+const popcornMenu = new Menu<BotContext>("popcorn-menu").dynamic(async (ctx, range) => {
+    const group = await fetchGroup(ctx.chat?.id!);
+    const flavorKeys = Object.keys(group.popcorns);
 
-        for (let i = 0; i < flavorKeys.length; i++) {
-            const flavor = flavorKeys[i];
+    for (let i = 0; i < flavorKeys.length; i++) {
+        const flavor = flavorKeys[i];
 
-            const username = ctx.me.username;
-            const encodedFlavor = flavor;
-            const encodedUserId = ctx.from?.id!;
-            const encodedChatId = ctx.chat?.id!;
+        const username = ctx.me.username;
+        const userId = ctx.from?.id!;
+        const chatId = ctx.chat?.id!;
+        const language = await ctx.i18n.getLocale();
 
-            const link = `https://t.me/${username}?start=take_${encodedFlavor}_${encodedUserId}_${encodedChatId}`;
-            const button = range.url(group.popcorns[flavor].emoji, link);
-            // only add .row if there are more than 3 buttons in a row
-            if (i % 3 === 0) {
-                button.row();
-            }
+        const link = `https://t.me/${username}?start=take_${flavor}_${userId}_${chatId}_${language}`;
+        const button = range.url(group.popcorns[flavor].emoji, link);
+        // only add .row if there are more than 3 buttons in a row
+        if (i % 3 === 0) {
+            button.row();
         }
-    })
-bot.use(menu);
-
+    }
+});
+const languageMenu = new Menu<BotContext>("language-menu").dynamic((_, range) => {
+    const locales = i18n.locales;
+    for (let i = 0; i < locales.length; i++) {
+        const button = range.text(locales[i], async (ctx) => {
+            await ctx.deleteMessage();
+            await ctx.i18n.setLocale(locales[i]);
+            await ctx.reply(ctx.t("language-set"));
+        });
+        if (i % 3 === 0) {
+            button.row();
+        }
+    }
+});
+bot.use(popcornMenu);
+bot.use(languageMenu);
 
 
 bot.chatType("private").command("start", async (ctx: BotContext) => {
     const deepLink = ctx.match;
     // match will be take-flavor-userid-chatid
     if (typeof deepLink === "string" && deepLink.startsWith("take")) {
-        const [_, flavor, userId, chatId] = deepLink.split("_");
+        const [_, flavor, userId, chatId, language] = deepLink.split("_");
 
         groups.findOne({ _id: parseInt(chatId) }).then(async (group) => {
             if (group) {
@@ -100,7 +112,10 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
 
                 await groups.replaceOne({ _id: parseInt(chatId) }, group);
 
+                const oldLanguage = await ctx.i18n.getLocale();
+                await ctx.i18n.setLocale(language);
                 await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
+                await ctx.i18n.setLocale(oldLanguage);
             }
         });
     } else {
@@ -131,6 +146,10 @@ bot.chatType(["group", "supergroup"])
 bot.on(":new_chat_members:me", async (ctx: BotContext) => {
     await ctx.reply(ctx.t("bot-joined"));
     await fetchGroup(ctx.chat?.id!);
+});
+
+bot.command("language", async (ctx: BotContext) => {
+    await ctx.reply(ctx.t("language-choose"), { reply_markup: languageMenu });
 });
 
 bot.on("message", async (ctx: BotContext) => {
@@ -181,7 +200,7 @@ async function startFlameSession(ctx: BotContext, group: GroupData) {
 
     await groups.replaceOne({ _id: ctx.chat?.id! }, group);
 
-    const flameMessage = await ctx.reply(ctx.t("flame-started", { flavors: flavorList }), { reply_markup: menu });
+    const flameMessage = await ctx.reply(ctx.t("flame-started", { flavors: flavorList }), { reply_markup: popcornMenu });
     await ctx.pinChatMessage(flameMessage.message_id, { disable_notification: true });
 }
 
