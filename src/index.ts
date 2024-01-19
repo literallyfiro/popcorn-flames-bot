@@ -154,6 +154,9 @@ bot.command("language", async (ctx: BotContext) => {
 });
 
 bot.on("message", async (ctx: BotContext) => {
+    if (ctx.chat?.type === "private") {
+        return;
+    }
     const group = await fetchGroup(ctx.chat?.id!);
     if (group.flameEnabled) {
         const fromId = ctx.message?.from?.id;
