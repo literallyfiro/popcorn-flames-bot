@@ -46,6 +46,20 @@ bot.api.config.use(parseMode("HTML"));
 await bot.api.setMyCommands([
     { command: "flame", description: "Starts or stops the flame session" },
 ]);
+await bot.api.setMyDefaultAdministratorRights({
+    for_channels: false,
+    rights: {
+        can_change_info: false,
+        can_delete_messages: false,
+        can_invite_users: false,
+        can_restrict_members: false,
+        can_pin_messages: true,
+        can_promote_members: false,
+        is_anonymous: false,
+        can_manage_chat: false,
+        can_manage_video_chats: false,
+    },
+});
 bot.use(session({ initial }));
 bot.use(i18n);
 
@@ -75,7 +89,7 @@ bot.use(menu);
 bot.chatType("private").command("start", async (ctx: BotContext) => {
     const deepLink = ctx.match;
     // match will be take-flavor-userid-chatid
-    if (typeof deepLink === "string") {
+    if (typeof deepLink === "string" && deepLink.startsWith("take")) {
         const [_, flavor, userId, chatId] = deepLink.split("-");
 
         // check if the user has already taken any popcorn
@@ -92,6 +106,11 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
         popcorn.takenBy.push(Number(userId));
 
         await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
+    } else {
+        // send a link to add the bot to a group. the bot must have pin permission
+        const botUsername = ctx.me.username;
+        const link = `https://t.me/${botUsername}?startgroup=true`;
+        await ctx.reply(ctx.t("start-private"), { reply_markup: { inline_keyboard: [[{ text: ctx.t("add-to-group"), url: link }]] } });
     }
 });
 
@@ -108,6 +127,11 @@ bot.chatType(["group", "supergroup"])
             await startFlameSession(ctx);
         }
     });
+
+// bot on join group
+bot.on(":new_chat_members:me", async (ctx: BotContext) => {
+    await ctx.reply(ctx.t("bot-joined"));
+});
 
 bot.on("message", (ctx: BotContext) => {
     if (ctx.session.flameEnabled) {

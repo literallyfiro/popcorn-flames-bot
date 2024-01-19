@@ -24,3 +24,16 @@ no-flamers = ❌ <i>No flamers yet :(</i>
 
 took-flavor = ✅ You have chosen the flavor <b>{$flavor}</b> for the popcorn in the group <b>{$group}</b>!
 already-took-flavor = ❌ You have already chosen the popcorn flavor in the group <b>{$group}</b>! Only one flavor at a time!
+
+# When the bot is added to a group
+bot-joined =
+    <b>🍿 FLAME BOT 🍿</b>
+
+    Hi, I'm the <b>Flame Bot</b>! I'm here to help you choose the popcorn flavor for the next heated argument in your group.
+    Admins can use the <b>/flame</b> command to start and stop the flame
+
+# Private chat
+start-private = 
+    Hi.
+add-to-group = 🍿 Add to your group 🍿
+
