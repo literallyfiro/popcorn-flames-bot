@@ -9,6 +9,7 @@ interface SessionData {
     flameEnabled: boolean;
     lastPinnedMessageId?: number;
     flamers: { [userId: string]: number };
+    flameStartedAt?: number;
 
     popcorns: {
         [type: string]: {
@@ -160,6 +161,7 @@ const getFlamerInfo = async (userId: number, ctx: BotContext, position: number):
 
 async function startFlameSession(ctx: BotContext) {
     ctx.session.flameEnabled = true;
+    ctx.session.flameStartedAt = Date.now();
 
     // get the last pinned message
     const chat = await ctx.getChat();
@@ -230,8 +232,13 @@ async function stopFlameSession(ctx: BotContext) {
         ctx.session.lastPinnedMessageId = undefined;
     }
 
+    const flameDuration = Date.now() - ctx.session.flameStartedAt!;
     const topFlamersMessage = await getFlamersMessage(ctx);
     const topFlavorsMessage = getFlavorsMessage(ctx);
+
+    const hours = Math.floor(flameDuration / 1000 / 60 / 60);
+    const minutes = Math.floor(flameDuration / 1000 / 60) % 60;
+    const seconds = Math.floor(flameDuration / 1000) % 60;
 
     // reset flamers
     ctx.session.flamers = {};
@@ -240,8 +247,10 @@ async function stopFlameSession(ctx: BotContext) {
         ctx.session.popcorns[type].takenTimes = 0;
         ctx.session.popcorns[type].takenBy = [];
     }
+    // reset flameStartedAt
+    ctx.session.flameStartedAt = undefined;
 
-    await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage }));
+    await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage, hours: hours, minutes: minutes, seconds: seconds }));
 }
 
 console.log("Bot started");

@@ -1,3 +1,18 @@
+date-layout = 
+    {$hours -> 
+        *[0] {""}
+         [one] 1 hour,{" "}
+         [other] {$hours} hours,{" "}
+    }{$minutes -> 
+        *[0] {""}
+         [one] 1 minute, and{" "}
+         [other] {$minutes} minutes, and{" "}
+    }{$seconds -> 
+        *[0] 0 seconds.. what?
+         [one] 1 second
+         [other] {$seconds} seconds
+    }
+
 flame-started = 
     <b>🍿 FLAME STARTED? 🍿</b>
 
@@ -16,6 +31,8 @@ flame-stopped =
 
     The most popular popcorn flavors were:
     {$topFlavors}
+
+    The duration of the flame was <b>{date-layout}</b>
 
     <b>See you at the next heated argument!</b>
 
