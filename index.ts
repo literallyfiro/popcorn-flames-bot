@@ -141,17 +141,9 @@ bot.on("message", (ctx: BotContext) => {
     }
 });
 
+
 const getPositionEmoji = (position: number): string => {
-    switch (position) {
-        case 1:
-            return "🥇";
-        case 2:
-            return "🥈";
-        case 3:
-            return "🥉";
-        default:
-            return "";
-    }
+    return position <= 3 ? ["🥇", "🥈", "🥉"][position - 1] : "";
 }
 
 const getFlamerInfo = async (userId: number, ctx: BotContext, position: number): Promise<string> => {
