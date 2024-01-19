@@ -110,7 +110,7 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
 
         // check if the user has already taken any popcorn
         for (const type in ctx.session.popcorns) {
-            if (ctx.session.popcorns[type].takenBy?.includes(Number(userId))) {
+            if (ctx.session.popcorns[type].takenBy?.includes(parseInt(userId))) {
                 await ctx.reply(ctx.t("already-took-flavor", { group: chatId }));
                 return;
             }
@@ -119,7 +119,7 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
         const popcorn = ctx.session.popcorns[flavor];
         popcorn.takenTimes++;
         popcorn.takenBy = popcorn.takenBy || [];
-        popcorn.takenBy.push(Number(userId));
+        popcorn.takenBy.push(parseInt(userId));
 
         await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
     } else {
@@ -162,7 +162,11 @@ const getPositionEmoji = (position: number): string => {
     return position <= 3 ? ["🥇", "🥈", "🥉"][position - 1] : "";
 }
 
-const getFlamerInfo = async (userId: number, ctx: BotContext, position: number): Promise<string> => {
+const getFlamerInfo = async (
+    userId: number,
+    ctx: BotContext,
+    position: number
+): Promise<string> => {
     const member = await ctx.getChatMember(userId);
     const firstName = member.user.first_name;
 
@@ -204,7 +208,7 @@ const getFlamersMessage = async (ctx: BotContext): Promise<string> => {
     const topFlamers = sortedFlamers.slice(0, 3);
     const topFlamersMessages = await Promise.all(
         topFlamers.map(async (userId, index) => {
-            return await getFlamerInfo(Number(userId), ctx, index + 1);
+            return await getFlamerInfo(parseInt(userId), ctx, index + 1);
         }),
     );
     const topFlamersMessage = topFlamersMessages.join("\n");
