@@ -3,6 +3,7 @@ import { I18n, I18nFlavor } from "https://deno.land/x/grammy_i18n@v1.0.1/mod.ts"
 import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
 import { load } from "https://deno.land/std@0.212.0/dotenv/mod.ts";
+import { run } from "https://deno.land/x/grammy_runner@v2.0.3/mod.ts";
 
 interface SessionData {
     __language_code?: string;
@@ -267,5 +268,9 @@ async function stopFlameSession(ctx: BotContext) {
     await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage, hours: hours, minutes: minutes, seconds: seconds }));
 }
 
+const runner = run(bot);
+
+const stopRunner = () => runner.isRunning() && runner.stop();
+Deno.addSignalListener("SIGINT", stopRunner);
+Deno.addSignalListener("SIGTERM", stopRunner);
 console.log("Bot started");
-bot.start();
