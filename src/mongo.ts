@@ -1,20 +1,29 @@
 import { MongoClient } from "npm:mongodb";
 import env from "./env.ts";
 
+/////////////////////////
+const CURRENT_VERSION = 3;
+/////////////////////////
+
 export interface GroupData {
     _id: number;
     flameEnabled: boolean;
     lastPinnedMessageId?: number;
+    flameMessageId?: number;
     flamers: { [userId: string]: number };
     flameStartedAt?: number;
-
     popcorns: {
         [type: string]: {
             emoji: string;
             takenTimes: number;
             takenBy?: number[];
         };
-    }
+    },
+    settings: {
+        // deno-lint-ignore no-explicit-any
+        [key: string]: any;
+    },
+    version?: number;
 }
 
 const defaultPopcornTypes = {
@@ -38,9 +47,54 @@ export async function fetchGroup(id: number): Promise<GroupData> {
             flameEnabled: false,
             flamers: {},
             popcorns: defaultPopcornTypes,
+            settings: {
+                announceWhenTakingPopcorn: true,
+                anonymousPopcorn: false,
+            },
+            version: CURRENT_VERSION,
         });
     }
     return group!;
+}
+
+export async function updateAllData() {
+    const allGroups = await groups.find().toArray();
+    const bulkOperations = [];
+
+    for (const group of allGroups) {
+        if (!group.version) {
+            group.settings = {
+                // Announce when user takes a popcorn
+                announceWhenTakingPopcorn: true,
+                // Allow users to take popcorns anonymously
+                anonymousPopcorn: false,
+                // Do not allow admins to pin other messages than the flame message
+                forceMessagePinning: true,
+            };
+            group.flameMessageId = undefined;
+            group.version = 3;
+        }
+        if (group.version === 2) {
+            // Do not allow admins to pin other messages than the flame message
+            group.settings.forceMessagePinning = true;
+            group.flameMessageId = undefined;
+            group.version = 3;
+        }
+
+        if (group.version !== CURRENT_VERSION) {
+            bulkOperations.push({
+                updateOne: {
+                    filter: { _id: group._id },
+                    update: { $set: group },
+                },
+            });
+        }
+    }
+
+    if (bulkOperations.length > 0) {
+        console.log(`Updating database (${bulkOperations.length} groups)...`);
+        await groups.bulkWrite(bulkOperations);
+    }
 }
 
 export default groups;

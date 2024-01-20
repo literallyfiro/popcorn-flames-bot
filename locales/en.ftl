@@ -1,5 +1,7 @@
 language-set = Language has been set to 🇺🇸 English
-language-choose = Choose your language
+language-choose = 🇺🇸 Choose your language 🇺🇸
+close = Close
+back = Back
 
 date-layout = 
     {$hours -> 
@@ -45,11 +47,15 @@ top-flamers-layout =
          [other] {$characters} characters
     }</b>
 
+pinning-not-allowed = ❌ You can't pin messages while the flame is going on! You can change settings with the <code>/settings</code> command.
+
 no-flavors = ❌ <i>No flavors have been chosen :(</i>
 no-flamers = ❌ <i>No flamers :(</i>
 
 took-flavor = ✅ You have chosen the flavor <b>{$flavor}</b> for the popcorn in the group <b>{$group}</b>!
 already-took-flavor = ❌ You have already chosen the popcorn flavor in the group <b>{$group}</b>! Only one flavor at a time!
+took-flavor-announce = ✅ <b>{$name}</b> has chosen the flavor <b>{$flavor}</b> for their popcorns!
+took-flavor-announce-anonymous = ✅ Someone has chosen the flavor <b>{$flavor}</b> for their popcorns!
 
 # When the bot is added to a group
 bot-joined =
@@ -58,6 +64,24 @@ bot-joined =
     Hi there! I'm the <b>Flame Bot</b>, and I'm ready to add some excitement to your group discussions. 🔥
 
     Admins, use the <b>/flame</b> command to kick off a flame and let the popcorn fest begin! 🎉
+
+# Settings main menu message
+settings =
+    <b>⚙️ Settings</b>
+
+    <b>announceWhenTakingPopcorn</b>:
+     -> <i>When someone takes a popcorn flavor, announce it in the group.</i>
+
+    <b>anonymousPopcorn</b>:
+     -> <i>When someone takes a popcorn flavor, don't show their name.</i> <b>Requires announceWhenTakingPopcorn to be enabled.</b>
+    
+    <b>forceMessagePinning</b>:
+     -> <i>Do not allow pinning while flame mode is on.</i>
+language =
+    <b>🇺🇸 Choose your language</b>
+
+    Choose your language from the list below. The language will be applied to this group.
+    Available languages are listed below.
 
 # Private chat
 start-private = 

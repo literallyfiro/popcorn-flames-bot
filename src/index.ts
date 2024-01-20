@@ -4,7 +4,8 @@ import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
 import { run } from "https://deno.land/x/grammy_runner@v2.0.3/mod.ts";
 import env from "./env.ts";
-import groups, { GroupData, fetchGroup } from "./mongo.ts";
+import groups, { GroupData, updateAllData } from "./mongo.ts";
+import { fetchGroup } from "./mongo.ts";
 
 interface SessionData {
     __language_code?: string;
@@ -22,6 +23,7 @@ bot.api.config.use(parseMode("HTML"));
 await bot.api.setMyCommands([
     { command: "flame", description: "Starts or stops the flame session" },
     { command: "language", description: "Sets the language of the bot" },
+    { command: "settings", description: "Modify group settings" },
 ]);
 await bot.api.setMyDefaultAdministratorRights({
     for_channels: false,
@@ -73,10 +75,13 @@ const popcornMenu = new Menu<BotContext>("popcorn-menu").dynamic(async (ctx, ran
         }
     }
 });
-const languageMenu = new Menu<BotContext>("language-menu").dynamic((_, range) => {
+const languageMenu = new Menu<BotContext>("language-menu").dynamic(async (ctx, range) => {
     const locales = i18n.locales;
+    const currentLocale = await ctx.i18n.getLocale();
+
     for (let i = 0; i < locales.length; i++) {
-        const button = range.text(locales[i], async (ctx) => {
+        const selectedEmoji = currentLocale === locales[i] ? "✅ " : "";
+        const button = range.text(`${selectedEmoji}${locales[i]}`, async (ctx) => {
             await ctx.deleteMessage();
             await ctx.i18n.setLocale(locales[i]);
             await ctx.reply(ctx.t("language-set"));
@@ -85,9 +90,37 @@ const languageMenu = new Menu<BotContext>("language-menu").dynamic((_, range) =>
             button.row();
         }
     }
+    range.row();
+    range.back(ctx.t("back"), async (ctx) => {
+        await ctx.editMessageText(ctx.t("settings"));
+    });
+});
+const settingsMenu = new Menu<BotContext>("settings-menu").dynamic(async (ctx, range) => {
+    const group = await fetchGroup(ctx.chat?.id!);
+    const settings = group.settings;
+
+    for (const key in settings) {
+        const status = settings[key];
+        const emoji = status ? "✅" : "❌";
+        const button = range.text(`${emoji} ${key}`, (ctx) => {
+            group.settings[key] = !status;
+            groups.replaceOne({ _id: ctx.chat?.id! }, group).then(async () => {
+                await ctx.editMessageText(ctx.t("settings"));
+            });
+        });
+        button.row();
+    }
+    range.submenu(ctx.t("language-choose"), "language-menu", (ctx) => {
+        ctx.editMessageText(ctx.t("language"));
+    });
+    range.text(ctx.t("close"), async (ctx) => {
+        await ctx.deleteMessage();
+    });
 });
 bot.use(popcornMenu);
 bot.use(languageMenu);
+settingsMenu.register(languageMenu);
+bot.use(settingsMenu);
 
 
 bot.chatType("private").command("start", async (ctx: BotContext) => {
@@ -117,6 +150,18 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
                 await ctx.i18n.setLocale(language);
                 await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
                 await ctx.i18n.setLocale(oldLanguage);
+
+                if (group.settings["announceWhenTakingPopcorn"]) {
+                    let formattedMessage;
+                    if (group.settings["anonymousPopcorn"]) {
+                        formattedMessage = ctx.t("took-flavor-announce-anonymous", { flavor: flavor });
+                        await ctx.api.sendMessage(chatId, formattedMessage, { disable_notification: true });
+                        return;
+                    }
+                    const formattedUser = `<a href="tg://user?id=${userId}">${ctx.from?.first_name}</a>`;
+                    formattedMessage = ctx.t("took-flavor-announce", { name: formattedUser, flavor: flavor });
+                    await ctx.api.sendMessage(chatId, formattedMessage, { disable_notification: true });
+                }
             }
         });
     } else {
@@ -127,21 +172,40 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
     }
 });
 
-bot.chatType(["group", "supergroup"])
-    .command("flame", async (ctx: BotContext) => {
-        const admins = await ctx.getChatAdministrators();
-        const isAdmin = admins.some((admin) => admin.user.id === ctx.from?.id);
-        if (!isAdmin) {
-            return;
-        }
+async function isAdmin(ctx: BotContext): Promise<boolean> {
+    const admins = await ctx.getChatAdministrators();
+    return admins.some((admin) => admin.user.id === ctx.from?.id);
+}
 
-        const group = await fetchGroup(ctx.chat?.id!);
-        if (group.flameEnabled) {
-            await stopFlameSession(ctx, group);
-        } else {
-            await startFlameSession(ctx, group);
-        }
-    });
+const groupChatType = bot.chatType(["group", "supergroup"]);
+groupChatType.on(":pinned_message", async (ctx: BotContext) => {
+    if (ctx.message?.from?.id === ctx.me.id) {
+        return;
+    }
+    const group = await fetchGroup(ctx.chat?.id!);
+    if (group.flameEnabled && group.settings["forceMessagePinning"]) {
+        await ctx.unpinChatMessage();
+        await ctx.reply(ctx.t("pinning-not-allowed"));
+        await ctx.pinChatMessage(group.flameMessageId!, { disable_notification: true });
+    }
+});
+groupChatType.command("flame", async (ctx: BotContext) => {
+    if (!await isAdmin(ctx)) {
+        return;
+    }
+    const group = await fetchGroup(ctx.chat?.id!);
+    if (group.flameEnabled) {
+        await stopFlameSession(ctx, group);
+    } else {
+        await startFlameSession(ctx, group);
+    }
+})
+groupChatType.command("settings", async (ctx: BotContext) => {
+    if (!await isAdmin(ctx)) {
+        return;
+    }
+    ctx.reply(ctx.t("settings"), { reply_markup: settingsMenu });
+})
 
 // bot on join group
 bot.on(":new_chat_members:me", async (ctx: BotContext) => {
@@ -202,10 +266,11 @@ async function startFlameSession(ctx: BotContext, group: GroupData) {
         return `${flavor.emoji} ${type}`;
     }).join("\n");
 
-    await groups.replaceOne({ _id: ctx.chat?.id! }, group);
-
     const flameMessage = await ctx.reply(ctx.t("flame-started", { flavors: flavorList }), { reply_markup: popcornMenu });
     await ctx.pinChatMessage(flameMessage.message_id, { disable_notification: true });
+    group.flameMessageId = flameMessage.message_id;
+
+    await groups.replaceOne({ _id: ctx.chat?.id! }, group);
 }
 
 const getFlamersMessage = async (ctx: BotContext, group: GroupData): Promise<string> => {
@@ -255,7 +320,10 @@ async function stopFlameSession(ctx: BotContext, group: GroupData) {
     group.flameEnabled = false;
 
     // unpin the flame message
-    await ctx.unpinChatMessage().catch(() => { });
+    const flameMessageId = group.flameMessageId;
+    if (flameMessageId) {
+        await ctx.unpinChatMessage(flameMessageId).catch(() => { });
+    }
 
     const lastPinnedMessageId = group.lastPinnedMessageId;
     if (lastPinnedMessageId) {
@@ -286,6 +354,7 @@ async function stopFlameSession(ctx: BotContext, group: GroupData) {
     await ctx.reply(ctx.t("flame-stopped", { topFlamers: topFlamersMessage, topFlavors: topFlavorsMessage, hours: hours, minutes: minutes, seconds: seconds }));
 }
 
+await updateAllData();
 const runner = run(bot);
 
 const stopRunner = () => runner.isRunning() && runner.stop();
