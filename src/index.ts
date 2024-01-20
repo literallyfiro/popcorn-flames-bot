@@ -255,7 +255,7 @@ async function stopFlameSession(ctx: BotContext, group: GroupData) {
     group.flameEnabled = false;
 
     // unpin the flame message
-    await ctx.unpinChatMessage(group.lastPinnedMessageId);
+    await ctx.unpinChatMessage().catch(() => { });
 
     const lastPinnedMessageId = group.lastPinnedMessageId;
     if (lastPinnedMessageId) {
