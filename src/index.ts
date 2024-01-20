@@ -147,7 +147,13 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
 
                 const oldLanguage = await ctx.i18n.getLocale();
                 await ctx.i18n.setLocale(language);
-                await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
+
+                const chat = await ctx.api.getChat(chatId);
+
+                if (chat.type === "supergroup" || chat.type === "group") {
+                    const formattedChat = `<a href="tg://chat?id=${chatId}">${chat.title}</a>`;
+                    await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: formattedChat }));
+                }
                 
                 if (group.settings["announceWhenTakingPopcorn"]) {
                     let formattedMessage;
