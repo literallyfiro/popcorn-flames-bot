@@ -148,8 +148,7 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
                 const oldLanguage = await ctx.i18n.getLocale();
                 await ctx.i18n.setLocale(language);
                 await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: chatId }));
-                await ctx.i18n.setLocale(oldLanguage);
-
+                
                 if (group.settings["announceWhenTakingPopcorn"]) {
                     let formattedMessage;
                     if (group.settings["anonymousPopcorn"]) {
@@ -161,6 +160,8 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
                     formattedMessage = ctx.t("took-flavor-announce", { name: formattedUser, flavor: flavor });
                     await ctx.api.sendMessage(chatId, formattedMessage, { disable_notification: true });
                 }
+
+                await ctx.i18n.setLocale(oldLanguage);
             }
         });
     } else {
