@@ -22,7 +22,6 @@ const i18n = new I18n<BotContext>({
 bot.api.config.use(parseMode("HTML"));
 await bot.api.setMyCommands([
     { command: "flame", description: "Starts or stops the flame session" },
-    { command: "language", description: "Sets the language of the bot" },
     { command: "settings", description: "Modify group settings" },
 ]);
 await bot.api.setMyDefaultAdministratorRights({
@@ -211,10 +210,6 @@ groupChatType.command("settings", async (ctx: BotContext) => {
 bot.on(":new_chat_members:me", async (ctx: BotContext) => {
     await ctx.reply(ctx.t("bot-joined"));
     await fetchGroup(ctx.chat?.id!);
-});
-
-bot.command("language", async (ctx: BotContext) => {
-    await ctx.reply(ctx.t("language-choose"), { reply_markup: languageMenu });
 });
 
 bot.on("message", async (ctx: BotContext) => {
