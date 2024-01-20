@@ -154,7 +154,7 @@ bot.chatType("private").command("start", async (ctx: BotContext) => {
                     const formattedChat = `<a href="tg://chat?id=${chatId}">${chat.title}</a>`;
                     await ctx.reply(ctx.t("took-flavor", { flavor: flavor, group: formattedChat }));
                 }
-                
+
                 if (group.settings["announceWhenTakingPopcorn"]) {
                     let formattedMessage;
                     if (group.settings["anonymousPopcorn"]) {
@@ -184,6 +184,9 @@ async function isAdmin(ctx: BotContext): Promise<boolean> {
 }
 
 const groupChatType = bot.chatType(["group", "supergroup"]);
+groupChatType.on(":left_chat_member:me", async (ctx: BotContext) => {
+    await groups.deleteOne({ _id: ctx.chat?.id! });
+});
 groupChatType.on(":pinned_message", async (ctx: BotContext) => {
     if (ctx.message?.from?.id === ctx.me.id) {
         return;
