@@ -3,6 +3,7 @@ import { I18n, I18nFlavor } from "https://deno.land/x/grammy_i18n@v1.0.1/mod.ts"
 import { Menu } from "https://deno.land/x/grammy_menu@v1.2.1/mod.ts";
 import { parseMode } from "https://deno.land/x/grammy_parse_mode@1.7.1/mod.ts";
 import { run } from "https://deno.land/x/grammy_runner@v2.0.3/mod.ts";
+import { FileAdapter } from "https://deno.land/x/grammy_storages@v2.4.1/file/src/mod.ts";
 import env from "./env.ts";
 import groups, { GroupData, updateAllData } from "./mongo.ts";
 import { fetchGroup } from "./mongo.ts";
@@ -50,8 +51,10 @@ bot.catch(async (err) => {
     }
     await ctx.reply("An error occurred while processing your request");
 });
-// @ts-ignore deno.
-bot.use(session({ initial: () => ({ __language_code: "en" }) }));
+bot.use(session({ 
+    initial: () => ({ __language_code: "en" }) ,
+    storage: new FileAdapter({ dirName: "locale_storage" }),
+}));
 bot.use(i18n);
 
 const popcornMenu = new Menu<BotContext>("popcorn-menu").dynamic(async (ctx, range) => {
