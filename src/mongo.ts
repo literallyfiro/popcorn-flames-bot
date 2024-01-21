@@ -62,7 +62,8 @@ export async function updateAllData() {
     const bulkOperations = [];
 
     for (const group of allGroups) {
-        if (!group.version) {
+        let version = group.version;
+        if (!version) {
             group.settings = {
                 // Announce when user takes a popcorn
                 announceWhenTakingPopcorn: true,
@@ -72,16 +73,16 @@ export async function updateAllData() {
                 forceMessagePinning: true,
             };
             group.flameMessageId = undefined;
-            group.version = 3;
+            version = 3;
         }
-        if (group.version === 2) {
+        if (version === 2) {
             // Do not allow admins to pin other messages than the flame message
             group.settings.forceMessagePinning = true;
             group.flameMessageId = undefined;
-            group.version = 3;
+            version = 3;
         }
 
-        if (group.version !== CURRENT_VERSION) {
+        if (version !== CURRENT_VERSION) {
             bulkOperations.push({
                 updateOne: {
                     filter: { _id: group._id },
